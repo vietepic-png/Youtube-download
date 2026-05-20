@@ -3,21 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YouTube Audio Downloader</title>
-    <!-- Nhúng thư viện nén ZIP và lưu file -->
+    <title>YouTube MP3 Bulk Downloader</title>
+    
+    <!-- Nhúng thư viện xử lý ZIP và lưu file -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     
     <style>
         :root {
-            --bg-color: #f9f9f9;
+            --bg-color: #f4f4f9;
             --card-bg: #ffffff;
-            --text-color: #333333;
-            --primary-color: #0070f3;
-            --border-color: #eaeaea;
+            --text-color: #333;
+            --primary-color: #2563eb;
+            --success-color: #16a34a;
+            --error-color: #dc2626;
+            --border-color: #e5e7eb;
         }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             background-color: var(--bg-color);
             color: var(--text-color);
             display: flex;
@@ -25,81 +28,101 @@
             align-items: center;
             min-height: 100vh;
             margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
         }
         .container {
             background: var(--card-bg);
             padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
             width: 100%;
             max-width: 600px;
         }
         h2 {
             margin-top: 0;
-            font-size: 22px;
-            font-weight: 600;
+            font-size: 24px;
             text-align: center;
-            margin-bottom: 20px;
+            color: var(--text-color);
+            margin-bottom: 25px;
         }
         textarea {
             width: 100%;
-            height: 150px;
-            padding: 12px;
+            height: 160px;
+            padding: 15px;
             border: 1px solid var(--border-color);
-            border-radius: 8px;
+            border-radius: 10px;
             resize: vertical;
-            font-size: 14px;
+            font-size: 15px;
             box-sizing: border-box;
             outline: none;
-            transition: border-color 0.2s;
+            transition: all 0.3s ease;
+            line-height: 1.5;
         }
         textarea:focus {
             border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
         }
         button {
             width: 100%;
             background-color: var(--primary-color);
             color: white;
             border: none;
-            padding: 12px;
+            padding: 14px;
             font-size: 16px;
-            font-weight: 500;
-            border-radius: 8px;
+            font-weight: 600;
+            border-radius: 10px;
             cursor: pointer;
-            margin-top: 15px;
-            transition: opacity 0.2s;
+            margin-top: 20px;
+            transition: background-color 0.2s;
         }
         button:hover {
-            opacity: 0.9;
+            background-color: #1d4ed8;
         }
         button:disabled {
-            background-color: #ccc;
+            background-color: #9ca3af;
             cursor: not-allowed;
         }
         #status {
-            margin-top: 15px;
+            margin-top: 20px;
             font-size: 14px;
-            white-space: pre-line;
-            line-height: 1.5;
-            max-height: 120px;
+            white-space: pre-wrap;
+            line-height: 1.6;
+            max-height: 200px;
             overflow-y: auto;
-            padding: 10px;
-            background: #f0f0f0;
-            border-radius: 6px;
+            padding: 15px;
+            background: #f8fafc;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
             display: none;
+            font-family: monospace;
         }
+        .log-info { color: var(--text-color); }
+        .log-success { color: var(--success-color); font-weight: bold; }
+        .log-error { color: var(--error-color); font-weight: bold; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>YouTube MP3 Bulk Downloader</h2>
-    <textarea id="linksInput" placeholder="Dán các đường link YouTube vào đây, mỗi link một dòng..."></textarea>
-    <button id="processBtn" onclick="processLinks()">Bắt đầu xử lý & Tải về .ZIP</button>
+    <h2>Trình Tải Nhạc YouTube Hàng Loạt</h2>
+    <textarea id="linksInput" placeholder="Dán các đường link YouTube vào đây...&#10;Mỗi link một dòng.&#10;Hỗ trợ cả link từ app điện thoại (m.youtube.com, youtu.be)"></textarea>
+    <button id="processBtn" onclick="processLinks()">Bắt Đầu Xử Lý & Tải ZIP</button>
     <div id="status"></div>
 </div>
 
 <script>
+    // Hàm ghi log ra màn hình giao diện
+    function logMessage(message, type = 'info') {
+        const statusDiv = document.getElementById('status');
+        let colorClass = 'log-info';
+        if (type === 'success') colorClass = 'log-success';
+        if (type === 'error') colorClass = 'log-error';
+        
+        statusDiv.innerHTML += `<span class="${colorClass}">${message}</span>\n`;
+        statusDiv.scrollTop = statusDiv.scrollHeight;
+    }
+
     async function processLinks() {
         const input = document.getElementById('linksInput').value.trim();
         const statusDiv = document.getElementById('status');
@@ -110,26 +133,48 @@
             return;
         }
 
-        // Tách các link theo hàng vuông/xuống dòng và lọc bỏ dòng trống
-        const links = input.split('\n').map(link => link.trim()).filter(link => link.length > 0);
+        // Tách link theo dòng và loại bỏ dòng trống
+        let rawLinks = input.split('\n').map(link => link.trim()).filter(link => link.length > 0);
         
-        // Khởi tạo trạng thái giao diện
+        // TỰ ĐỘNG CHUẨN HÓA LINK
+        const cleanLinks = rawLinks.map(link => {
+            try {
+                // Đổi m.youtube.com thành chuẩn www.youtube.com
+                let clean = link.replace('m.youtube.com', 'www.youtube.com');
+                // Loại bỏ tất cả tham số phía sau dấu & (như &pp=, &list=...)
+                if (clean.includes('&')) {
+                    clean = clean.split('&')[0];
+                }
+                return clean;
+            } catch(e) {
+                return link;
+            }
+        });
+
+        // Đặt lại giao diện
         statusDiv.style.display = 'block';
-        statusDiv.innerHTML = `Bắt đầu xử lý ${links.length} video...\n`;
+        statusDiv.innerHTML = '';
         btn.disabled = true;
+        btn.innerText = 'Đang xử lý...';
+
+        logMessage(`Đã tìm thấy ${cleanLinks.length} link. Bắt đầu xử lý...`, 'info');
 
         const zip = new JSZip();
         let successCount = 0;
 
-        for (let i = 0; i < links.length; i++) {
-            const url = links[i];
+        // Sử dụng CORS Proxy để vượt tường lửa của GitHub Pages
+        const proxyUrl = 'https://corsproxy.io/?'; 
+        const targetApiUrl = 'https://api.cobalt.tools/api/json';
+
+        for (let i = 0; i < cleanLinks.length; i++) {
+            const url = cleanLinks[i];
             const currentIdx = i + 1;
-            statusDiv.innerHTML += `[${currentIdx}/${links.length}] Đang lấy link tải: ${url}...\n`;
-            statusDiv.scrollTop = statusDiv.scrollHeight;
+            
+            logMessage(`\n[${currentIdx}/${cleanLinks.length}] Đang xử lý: ${url}`);
 
             try {
-                // Gọi API của Cobalt để phân tách nhạc từ YouTube (Không quảng cáo, Open-source)
-                const response = await fetch('https://api.cobalt.tools/api/json', {
+                // Gọi API thông qua Proxy
+                const response = await fetch(proxyUrl + encodeURIComponent(targetApiUrl), {
                     method: 'POST',
                     headers: {
                         'Accept': 'application/json',
@@ -137,55 +182,62 @@
                     },
                     body: JSON.stringify({
                         url: url,
-                        isAudioOnly: true, // Chỉ lấy audio
-                        audioFormat: 'mp3', // Định dạng mp3
+                        isAudioOnly: true,
+                        audioFormat: 'mp3',
                         vCodec: 'h264',
                         aCodec: 'mp3'
                     })
                 });
 
+                if (!response.ok) {
+                    throw new Error(`Mã lỗi API: ${response.status}`);
+                }
+
                 const data = await response.json();
 
                 if (data.status === 'stream' || data.status === 'redirect') {
                     const downloadUrl = data.url;
-                    statusDiv.innerHTML += ` -> Đang tải dữ liệu âm thanh về bộ nhớ...\n`;
-                    statusDiv.scrollTop = statusDiv.scrollHeight;
+                    logMessage(`-> Lấy luồng âm thanh thành công. Đang tải về RAM...`);
 
-                    // Tải file dạng Blob để chuẩn bị nén vào zip
-                    const fileResponse = await fetch(downloadUrl);
+                    // Kéo file MP3 về thông qua proxy để tránh lỗi CORS khi tải file
+                    const fileResponse = await fetch(proxyUrl + encodeURIComponent(downloadUrl));
+                    if (!fileResponse.ok) throw new Error('Không thể tải file âm thanh');
+                    
                     const fileBlob = await fileResponse.blob();
                     
-                    // Đặt tên file mặc định dựa theo mốc thời gian hoặc ID nếu không lấy được title công khai
                     const filename = `Audio_${currentIdx}_${Date.now()}.mp3`;
-                    
-                    // Thêm file vào thư mục ZIP
                     zip.file(filename, fileBlob);
                     successCount++;
+                    
+                    logMessage(`-> Xong! Đã đưa vào danh sách nén ZIP.`, 'success');
                 } else {
-                    statusDiv.innerHTML += ` -> Thất bại: API không phản hồi luồng tải.\n`;
+                    logMessage(`-> Thất bại: API từ chối hoặc video không hỗ trợ.`, 'error');
                 }
 
             } catch (error) {
-                statusDiv.innerHTML += ` -> Lỗi hệ thống khi xử lý link này.\n`;
+                logMessage(`-> Lỗi: ${error.message}`, 'error');
                 console.error(error);
             }
-            statusDiv.scrollTop = statusDiv.scrollHeight;
         }
 
-        // Tiến hành nén và xuất file nếu có ít nhất 1 file thành công
+        // Đóng gói và xuất file ZIP
         if (successCount > 0) {
-            statusDiv.innerHTML += `\nĐang nén thành file ZIP... Vui lòng đợi.\n`;
-            statusDiv.scrollTop = statusDiv.scrollHeight;
+            logMessage(`\nĐang tiến hành nén ${successCount} file thành ZIP. Vui lòng không đóng trình duyệt...`, 'info');
 
-            zip.generateAsync({ type: 'blob' }).then(function (content) {
-                saveAs(content, `YouTube_Audio_Collection_${Date.now()}.zip`);
-                statusDiv.innerHTML += `\n Hoàn thành! Đã tải và nén thành công ${successCount}/${links.length} tệp tin.`;
-                btn.disabled = false;
-            });
+            try {
+                const zipContent = await zip.generateAsync({ type: 'blob' });
+                saveAs(zipContent, `YouTube_Nhac_${Date.now()}.zip`);
+                logMessage(`\n🎉 HOÀN TẤT! Đã tải về máy thành công.`, 'success');
+            } catch(e) {
+                logMessage(`\n❌ Lỗi trong quá trình tạo file ZIP.`, 'error');
+            }
         } else {
-            statusDiv.innerHTML += `\n Không có file nào được tải thành công. Vui lòng kiểm tra lại link.`;
-            btn.disabled = false;
+            logMessage(`\n⚠️ KHÔNG CÓ FILE NÀO THÀNH CÔNG. Vui lòng kiểm tra lại link hoặc thử lại sau.`, 'error');
         }
+
+        // Khôi phục nút bấm
+        btn.disabled = false;
+        btn.innerText = 'Bắt Đầu Xử Lý & Tải ZIP';
     }
 </script>
 
